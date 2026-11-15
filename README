@@ -131,3 +131,40 @@ for hit in results["hits"]:
     doc = hit["document"]
     print(hit["vector_distance"], doc["file_name"], doc["page_start"], doc["page_end"])
 ```
+
+## 4. Web UI
+
+A minimal web UI (`app.py`, Flask) to upload and index new PDFs and to search the corpus:
+
+```bash
+python app.py
+# open http://localhost:5000
+```
+
+- **Search**: type a query and choose the mode:
+  - `Semantic`: vector search on `embedding` (results farther than distance `0.8` are hidden);
+  - `Hybrid`: keyword + semantic (`query_by: text,embedding`);
+  - `Keyword`: classic full-text search on `text`.
+
+  Each result shows the source PDF, the page range, the chunk number, the similarity (semantic and
+  hybrid modes) and the chunk text, with keyword matches highlighted. Clicking the file name opens the
+  PDF at the chunk's first page.
+- **Upload & index**: the uploaded PDF is saved to `corpus/` and indexed with the same pipeline as
+  `index_corpus.py`. Uploading a file with an existing name replaces it and re-indexes it; if indexing
+  fails, the previous file is restored. Only valid PDFs are accepted (max 50 MB by default).
+- **Indexed documents**: the sidebar lists the indexed PDFs with their chunk counts.
+
+The UI uses the same `TYPESENSE_*` environment variables as the indexer, plus:
+
+| Environment variable   | Default        | Description                    |
+|------------------------|----------------|--------------------------------|
+| `TYPESENSE_COLLECTION` | `pdf_chunks`   | Collection to search/index     |
+| `TYPESENSE_MODEL`      | `ts/all-MiniLM-L12-v2` | Embedding model, used only if the collection must be created |
+| `CORPUS_DIR`           | `./corpus`     | Where uploaded PDFs are saved  |
+| `CHUNK_SIZE`           | `200`          | Words per chunk for uploads    |
+| `CHUNK_OVERLAP`        | `50`           | Overlap in words for uploads   |
+| `MAX_UPLOAD_MB`        | `50`           | Maximum upload size            |
+| `PORT`                 | `5000`         | HTTP port                      |
+
+The server listens on `127.0.0.1` only and uses Flask's development server, which is fine for local
+experiments but not for production.
