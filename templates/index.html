@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local Semantic Search</title>
+  <style>
+    :root { --accent: #2563eb; --muted: #6b7280; --border: #e5e7eb; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; background: #f9fafb; color: #111827; }
+    header { background: #fff; border-bottom: 1px solid var(--border); padding: 1rem 2rem; }
+    header h1 { margin: 0; font-size: 1.3rem; }
+    main { display: grid; grid-template-columns: 1fr 300px; gap: 1.5rem; max-width: 1200px; margin: 1.5rem auto; padding: 0 1.5rem; }
+    @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+    .card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+    h2 { font-size: 1rem; margin: 0 0 .75rem; }
+    form.search { display: flex; gap: .5rem; flex-wrap: wrap; }
+    input[type=text] { flex: 1; min-width: 200px; padding: .6rem .75rem; border: 1px solid var(--border); border-radius: 6px; font-size: 1rem; }
+    select, button, input[type=file] { padding: .55rem .75rem; border: 1px solid var(--border); border-radius: 6px; font-size: .95rem; background: #fff; }
+    button { background: var(--accent); color: #fff; border-color: var(--accent); cursor: pointer; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .flash { padding: .6rem .9rem; border-radius: 6px; margin-bottom: 1rem; }
+    .flash.success { background: #dcfce7; color: #166534; }
+    .flash.error { background: #fee2e2; color: #991b1b; }
+    .result { border-top: 1px solid var(--border); padding: .9rem 0; }
+    .result:first-of-type { border-top: none; }
+    .meta { font-size: .85rem; color: var(--muted); margin-bottom: .35rem; display: flex; gap: .75rem; flex-wrap: wrap; }
+    .meta a { color: var(--accent); font-weight: 600; text-decoration: none; }
+    .text { line-height: 1.5; font-size: .95rem; }
+    .clamp { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+    details summary { cursor: pointer; color: var(--accent); font-size: .85rem; margin-top: .3rem; }
+    mark { background: #fef08a; padding: 0 1px; }
+    ul.files { list-style: none; padding: 0; margin: 0; font-size: .9rem; }
+    ul.files li { display: flex; justify-content: space-between; gap: .5rem; padding: .3rem 0; border-bottom: 1px solid var(--border); }
+    .muted { color: var(--muted); font-size: .9rem; }
+    form.upload { display: flex; flex-direction: column; gap: .5rem; }
+  </style>
+</head>
+<body>
+<header><h1>Local Semantic Search &middot; Typesense</h1></header>
+<main>
+  <section>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}
+    {% endwith %}
+    {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+
+    <div class="card">
+      <form class="search" method="get" action="{{ url_for('home') }}">
+        <input type="text" name="q" value="{{ query }}" placeholder="Ask something about your documents…" autofocus>
+        <select name="mode" title="Search mode">
+          {% for m in modes %}<option value="{{ m }}" {% if m == mode %}selected{% endif %}>{{ m|capitalize }}</option>{% endfor %}
+        </select>
+        <button type="submit">Search</button>
+      </form>
+    </div>
+
+    {% if query %}
+    <div class="card">
+      <h2>{{ results|length }} result{{ '' if results|length == 1 else 's' }} for “{{ query }}”</h2>
+      {% for r in results %}
+      <div class="result">
+        <div class="meta">
+          <a href="{{ url_for('pdf', file_path=r.file_path) }}#page={{ r.page_start }}" target="_blank">{{ r.file_name }}</a>
+          <span>{% if r.page_start == r.page_end %}page {{ r.page_start }}{% else %}pages {{ r.page_start }}–{{ r.page_end }}{% endif %}</span>
+          <span>chunk #{{ r.chunk_index }}</span>
+          {% if r.vector_distance is not none %}<span>similarity {{ '%.2f'|format(1 - r.vector_distance) }}</span>{% endif %}
+        </div>
+        <div class="text clamp">{{ r.html or r.text }}</div>
+        <details><summary>Show full chunk</summary><div class="text">{{ r.html or r.text }}</div></details>
+      </div>
+      {% else %}
+      <p class="muted">No results.</p>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+
+  <aside>
+    <div class="card">
+      <h2>Upload &amp; index a PDF</h2>
+      <form class="upload" method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data"
+            onsubmit="const b=this.querySelector('button'); b.disabled=true; b.textContent='Indexing…';">
+        <input type="file" name="pdf" accept="application/pdf,.pdf" required>
+        <button type="submit">Upload &amp; index</button>
+      </form>
+      <p class="muted">The file is saved to <code>corpus/</code>; uploading a file with the same name re-indexes it.</p>
+    </div>
+
+    <div class="card">
+      <h2>Indexed documents ({{ files|length }})</h2>
+      {% if files %}
+      <ul class="files">
+        {% for f in files %}<li><span>{{ f.name }}</span><span class="muted">{{ f.chunks }} chunks</span></li>{% endfor %}
+      </ul>
+      {% else %}
+      <p class="muted">No documents indexed yet.</p>
+      {% endif %}
+    </div>
+  </aside>
+</main>
+</body>
+</html>
